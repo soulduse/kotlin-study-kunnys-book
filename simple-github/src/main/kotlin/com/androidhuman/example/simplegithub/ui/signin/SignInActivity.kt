@@ -18,6 +18,10 @@ import android.view.View
 import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.Toast
+import org.jetbrains.anko.clearTask
+import org.jetbrains.anko.intentFor
+import org.jetbrains.anko.longToast
+import org.jetbrains.anko.newTask
 
 import retrofit2.Call
 import retrofit2.Callback
@@ -50,10 +54,6 @@ class SignInActivity : AppCompatActivity() {
                     .appendPath("authorize")
                     .appendQueryParameter("client_id", BuildConfig.GITHUB_CLIENT_ID)
                     .build()
-
-            Log.w("This", authUri.toString())
-
-            val uri = Uri.parse("https://www.github.com/")
 
             val intent = CustomTabsIntent.Builder().build()
             intent.launchUrl(this@SignInActivity, authUri)
@@ -116,14 +116,11 @@ class SignInActivity : AppCompatActivity() {
     }
 
     private fun showError(throwable: Throwable) {
-        Toast.makeText(this, throwable.message, Toast.LENGTH_LONG).show()
+        longToast(throwable.message ?: "No message available")
     }
 
     private fun launchMainActivity() {
-        startActivity(Intent(
-                this@SignInActivity, MainActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        startActivity(intentFor<MainActivity>().clearTask().newTask())
     }
 
     override fun onStop() {
