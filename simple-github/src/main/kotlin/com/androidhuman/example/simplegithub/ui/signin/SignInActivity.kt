@@ -1,31 +1,27 @@
 package com.androidhuman.example.simplegithub.ui.signin
 
-import com.androidhuman.example.simplegithub.BuildConfig
-import com.androidhuman.example.simplegithub.R
-import com.androidhuman.example.simplegithub.api.AuthApi
-import com.androidhuman.example.simplegithub.api.model.GithubAccessToken
-import com.androidhuman.example.simplegithub.api.provideAuthApi
-import com.androidhuman.example.simplegithub.data.AuthTokenProvider
-import com.androidhuman.example.simplegithub.ui.main.MainActivity
-
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.support.customtabs.CustomTabsIntent
 import android.support.v7.app.AppCompatActivity
-import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.ProgressBar
-import android.widget.Toast
+import com.androidhuman.example.simplegithub.BuildConfig
+import com.androidhuman.example.simplegithub.R
+import com.androidhuman.example.simplegithub.api.AuthApi
+import com.androidhuman.example.simplegithub.api.NetworkCallback
+import com.androidhuman.example.simplegithub.api.NetworkProvider
+import com.androidhuman.example.simplegithub.api.model.GithubAccessToken
+import com.androidhuman.example.simplegithub.api.provideAuthApi
+import com.androidhuman.example.simplegithub.data.AuthTokenProvider
+import com.androidhuman.example.simplegithub.ui.main.MainActivity
+import kotlinx.coroutines.experimental.Deferred
 import org.jetbrains.anko.clearTask
 import org.jetbrains.anko.intentFor
 import org.jetbrains.anko.longToast
 import org.jetbrains.anko.newTask
-
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 
 class SignInActivity : AppCompatActivity() {
 
@@ -37,7 +33,7 @@ class SignInActivity : AppCompatActivity() {
 
     internal val authTokenProvider by lazy { AuthTokenProvider(this) }
 
-    internal var accessTokenCall: Call<GithubAccessToken> ?= null
+    internal var accessTokenCall: Deferred<GithubAccessToken> ?= null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -77,32 +73,30 @@ class SignInActivity : AppCompatActivity() {
     }
 
     private fun getAccessToken(code: String) {
-        showProgress()
-
         accessTokenCall = api.getAccessToken(
-                BuildConfig.GITHUB_CLIENT_ID, BuildConfig.GITHUB_CLIENT_SECRET, code)
+                BuildConfig.GITHUB_CLIENT_ID,
+                BuildConfig.GITHUB_CLIENT_SECRET, code
+        )
 
-        accessTokenCall!!.enqueue(object : Callback<GithubAccessToken> {
-            override fun onResponse(call: Call<GithubAccessToken>,
-                                    response: Response<GithubAccessToken>) {
-                hideProgress()
+        NetworkProvider.request(accessTokenCall!!,
+                NetworkCallback<GithubAccessToken>().apply{
+                    preExecute = {
+                        showProgress()
+                    }
 
-                val token = response.body()
-                if (response.isSuccessful && null != token) {
-                    authTokenProvider.updateToken(token.accessToken)
+                    success = {
+                        authTokenProvider.updateToken(it.accessToken)
+                        launchMainActivity()
+                    }
 
-                    launchMainActivity()
-                } else {
-                    showError(IllegalStateException(
-                            "Not successful: " + response.message()))
-                }
-            }
+                    error = {
+                        showError(it)
+                    }
 
-            override fun onFailure(call: Call<GithubAccessToken>, t: Throwable) {
-                hideProgress()
-                showError(t)
-            }
-        })
+                    postExecute = {
+                        hideProgress()
+                    }
+                })
     }
 
     private fun showProgress() {

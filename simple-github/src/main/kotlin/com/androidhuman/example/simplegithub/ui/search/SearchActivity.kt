@@ -1,6 +1,5 @@
 package com.androidhuman.example.simplegithub.ui.search
 
-import android.content.Intent
 import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
 import android.support.v7.widget.LinearLayoutManager
@@ -11,15 +10,15 @@ import android.view.View
 import android.view.inputmethod.InputMethodManager
 import com.androidhuman.example.simplegithub.R
 import com.androidhuman.example.simplegithub.api.GithubApi
+import com.androidhuman.example.simplegithub.api.NetworkCallback
+import com.androidhuman.example.simplegithub.api.NetworkProvider
 import com.androidhuman.example.simplegithub.api.model.GithubRepo
 import com.androidhuman.example.simplegithub.api.model.RepoSearchResponse
 import com.androidhuman.example.simplegithub.api.provideGithubApi
 import com.androidhuman.example.simplegithub.ui.repo.RepositoryActivity
 import kotlinx.android.synthetic.main.activity_search.*
+import kotlinx.coroutines.experimental.Deferred
 import org.jetbrains.anko.startActivity
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 
 class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
 
@@ -28,12 +27,12 @@ class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
     internal lateinit var searchView: SearchView
 
     internal val adapter: SearchAdapter by lazy {
-        SearchAdapter().apply { adapter.setItemClickListener(this@SearchActivity) }
+        SearchAdapter().apply { setItemClickListener(this@SearchActivity) }
     }
 
     internal val api: GithubApi by lazy { provideGithubApi(this) }
 
-    internal var searchCall: Call<RepoSearchResponse> ?= null
+    internal var searchCall: Deferred<RepoSearchResponse> ?= null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -99,36 +98,34 @@ class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
     }
 
     private fun searchRepository(query: String) {
-        clearResults()
-        hideError()
-        showProgress()
-
         searchCall = api.searchRepository(query)
-        searchCall!!.enqueue(object : Callback<RepoSearchResponse> {
-            override fun onResponse(call: Call<RepoSearchResponse>,
-                                    response: Response<RepoSearchResponse>) {
-                hideProgress()
-
-                val searchResult = response.body()
-                if (response.isSuccessful && null != searchResult) {
-                    with(adapter){
-                        setItems(searchResult.items)
-                        notifyDataSetChanged()
+        NetworkProvider.request(searchCall!!,
+                NetworkCallback<RepoSearchResponse>().apply {
+                    preExecute = {
+                        clearResults()
+                        hideError()
+                        showProgress()
                     }
 
-                    if (0 == searchResult.totalCount) {
-                        showError(getString(R.string.no_search_result))
-                    }
-                } else {
-                    showError("Not successful: " + response.message())
-                }
-            }
+                    success = {
+                        with(adapter){
+                            setItems(it.items)
+                            notifyDataSetChanged()
+                        }
 
-            override fun onFailure(call: Call<RepoSearchResponse>, t: Throwable) {
-                hideProgress()
-                showError(t.message)
-            }
-        })
+                        if(0 == it.totalCount){
+                            showError(getString(R.string.no_search_result))
+                        }
+                    }
+
+                    error = {
+                        showError(it.message)
+                    }
+
+                    postExecute = {
+                        hideProgress()
+                    }
+                })
     }
 
     private fun updateTitle(query: String) {
