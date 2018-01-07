@@ -2,7 +2,6 @@ package com.androidhuman.example.simplegithub.ui.repo
 
 import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
-import android.util.Log
 import android.view.View
 import com.androidhuman.example.simplegithub.R
 import com.androidhuman.example.simplegithub.api.GithubApi
@@ -47,16 +46,7 @@ class RepositoryActivity : AppCompatActivity() {
             }
 
             success = { repo->
-                Log.w("RepositoryActivity", """
-                    owner.avatarUrl : ${repo.owner.avatarUrl}
-                    owner.login : ${repo.owner.login}
-                    description : ${repo.description}
-                    fullName : ${repo.fullName}
-                    language : ${repo.language}
-                    name : ${repo.name}
-                    stars : ${repo.stars}
-                    updatedAt : ${repo.updatedAt}
-                    """.trimMargin())
+                hideProgress(true)
                 GlideApp.with(this@RepositoryActivity)
                         .load(repo.owner.avatarUrl)
                         .into(ivActivityRepositoryProfile)
@@ -84,11 +74,8 @@ class RepositoryActivity : AppCompatActivity() {
             }
 
             error = {
+                hideProgress(false)
                 showError(it.message)
-            }
-
-            postExecute = {
-                hideProgress(true)
             }
         })
     }
