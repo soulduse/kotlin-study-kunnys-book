@@ -49,5 +49,9 @@ dependencies {
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:$coroutinesVersion"
     implementation "com.jakewharton.retrofit:retrofit2-kotlin-coroutines-experimental-adapter:$coroutinesConverterVersion"
 
+    // Room Lib
+    implementation "android.arch.persistence.room:runtime:$archComponentVersion"
+
+    kapt "android.arch.persistence.room:compiler:$archComponentVersion"
     kapt "com.github.bumptech.glide:compiler:$glideVersion"
 }

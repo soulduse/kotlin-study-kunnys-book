@@ -1,5 +1,6 @@
 package com.androidhuman.example.simplegithub.api.model
 
+import android.arch.persistence.room.Entity
 import com.google.gson.annotations.SerializedName
 
 class GithubRepo(

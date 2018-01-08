@@ -18,4 +18,5 @@ ext {
     ankoVersion = '0.10.2'
     coroutinesVersion = '0.21'
     coroutinesConverterVersion = '1.0.0'
+    archComponentVersion = '1.0.0'
 }
