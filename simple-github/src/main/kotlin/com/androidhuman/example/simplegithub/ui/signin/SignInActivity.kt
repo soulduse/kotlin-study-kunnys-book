@@ -11,13 +11,13 @@ import android.widget.ProgressBar
 import com.androidhuman.example.simplegithub.BuildConfig
 import com.androidhuman.example.simplegithub.R
 import com.androidhuman.example.simplegithub.api.AuthApi
-import com.androidhuman.example.simplegithub.api.NetworkCallback
-import com.androidhuman.example.simplegithub.api.NetworkProvider
 import com.androidhuman.example.simplegithub.api.model.GithubAccessToken
 import com.androidhuman.example.simplegithub.api.provideAuthApi
 import com.androidhuman.example.simplegithub.data.AuthTokenProvider
+import com.androidhuman.example.simplegithub.extensions.plusAssign
 import com.androidhuman.example.simplegithub.ui.main.MainActivity
-import kotlinx.coroutines.experimental.Deferred
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
 import org.jetbrains.anko.clearTask
 import org.jetbrains.anko.intentFor
 import org.jetbrains.anko.longToast
@@ -33,7 +33,7 @@ class SignInActivity : AppCompatActivity() {
 
     internal val authTokenProvider by lazy { AuthTokenProvider(this) }
 
-    internal var accessTokenCall: Deferred<GithubAccessToken> ?= null
+    internal val disposables = CompositeDisposable()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,30 +73,25 @@ class SignInActivity : AppCompatActivity() {
     }
 
     private fun getAccessToken(code: String) {
-        accessTokenCall = api.getAccessToken(
-                BuildConfig.GITHUB_CLIENT_ID,
-                BuildConfig.GITHUB_CLIENT_SECRET, code
-        )
 
-        NetworkProvider.request(accessTokenCall!!,
-                NetworkCallback<GithubAccessToken>().apply{
-                    preExecute = {
-                        showProgress()
-                    }
-
-                    success = {
-                        authTokenProvider.updateToken(it.accessToken)
-                        launchMainActivity()
-                    }
-
-                    error = {
-                        showError(it)
-                    }
-
-                    postExecute = {
-                        hideProgress()
-                    }
-                })
+        // REST API를 통해 엑세스 토큰을 요청한다.
+        disposables += api.getAccessToken(
+                BuildConfig.GITHUB_CLIENT_ID, BuildConfig.GITHUB_CLIENT_SECRET, code)
+                .map { it.accessToken }
+                .observeOn(AndroidSchedulers.mainThread())
+                .doOnSubscribe { showProgress() }
+                .doOnTerminate { hideProgress() }
+                .subscribe({ token ->
+                    // API를 통해 엑세스 토큰을 정상적으로 받았을 때 처리할 작업을 구현합니다
+                    // 작업 중 오류가 발생하면 이 블록은 호출되지 않습니다.
+                    authTokenProvider.updateToken(token)
+                    launchMainActivity()
+                }) {
+                    // error 블록
+                    // 네트워크 오류나 데이터 처리 오류 등
+                    // 작업이 정상적으로 완료되지 않았을 때 호출됨
+                    showError(it)
+                }
     }
 
     private fun showProgress() {
@@ -118,7 +113,7 @@ class SignInActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
-        accessTokenCall?.run { cancel() }
+        disposables.clear()
         super.onStop()
     }
 }

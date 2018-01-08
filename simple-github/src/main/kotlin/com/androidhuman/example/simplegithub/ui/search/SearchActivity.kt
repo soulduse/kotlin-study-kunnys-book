@@ -10,14 +10,14 @@ import android.view.View
 import android.view.inputmethod.InputMethodManager
 import com.androidhuman.example.simplegithub.R
 import com.androidhuman.example.simplegithub.api.GithubApi
-import com.androidhuman.example.simplegithub.api.NetworkCallback
-import com.androidhuman.example.simplegithub.api.NetworkProvider
 import com.androidhuman.example.simplegithub.api.model.GithubRepo
-import com.androidhuman.example.simplegithub.api.model.RepoSearchResponse
 import com.androidhuman.example.simplegithub.api.provideGithubApi
+import com.androidhuman.example.simplegithub.extensions.plusAssign
 import com.androidhuman.example.simplegithub.ui.repo.RepositoryActivity
+import io.reactivex.Observable
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
 import kotlinx.android.synthetic.main.activity_search.*
-import kotlinx.coroutines.experimental.Deferred
 import org.jetbrains.anko.startActivity
 
 class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
@@ -32,7 +32,7 @@ class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
 
     internal val api: GithubApi by lazy { provideGithubApi(this) }
 
-    internal var searchCall: Deferred<RepoSearchResponse> ?= null
+    internal val disposables = CompositeDisposable()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -98,34 +98,32 @@ class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
     }
 
     private fun searchRepository(query: String) {
-        searchCall = api.searchRepository(query)
-        NetworkProvider.request(searchCall!!,
-                NetworkCallback<RepoSearchResponse>().apply {
-                    preExecute = {
-                        clearResults()
-                        hideError()
-                        showProgress()
-                    }
 
-                    success = {
-                        with(adapter){
-                            setItems(it.items)
-                            notifyDataSetChanged()
-                        }
-
-                        if(0 == it.totalCount){
-                            showError(getString(R.string.no_search_result))
-                        }
+        disposables += api.searchRepository(query)
+                .flatMap {
+                    if(0 == it.totalCount){
+                        // 검색 결과가 없을 경우 에러를 바로 발생시켜 메세지 출력
+                        Observable.error(IllegalStateException("No search result"))
+                    }else{
+                        Observable.just(it.items)
                     }
+                }
+                .observeOn(AndroidSchedulers.mainThread())
+                .doOnSubscribe {
+                    clearResults()
+                    hideError()
+                    showProgress()
+                }
+                .doOnTerminate { hideProgress() }
+                .subscribe({items->
 
-                    error = {
-                        showError(it.message)
+                    with(adapter){
+                        setItems(items)
+                        notifyDataSetChanged()
                     }
-
-                    postExecute = {
-                        hideProgress()
-                    }
-                })
+                }) {
+                    showError(it.message)
+                }
     }
 
     private fun updateTitle(query: String) {
@@ -172,7 +170,7 @@ class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
     }
 
     override fun onStop() {
-        searchCall?.run { cancel() }
+        disposables.clear()
         super.onStop()
     }
 }

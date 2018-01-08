@@ -5,13 +5,12 @@ import android.support.v7.app.AppCompatActivity
 import android.view.View
 import com.androidhuman.example.simplegithub.R
 import com.androidhuman.example.simplegithub.api.GithubApi
-import com.androidhuman.example.simplegithub.api.NetworkCallback
-import com.androidhuman.example.simplegithub.api.NetworkProvider
-import com.androidhuman.example.simplegithub.api.model.GithubRepo
 import com.androidhuman.example.simplegithub.api.provideGithubApi
+import com.androidhuman.example.simplegithub.extensions.plusAssign
 import com.androidhuman.example.simplegithub.ui.GlideApp
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
 import kotlinx.android.synthetic.main.activity_repository.*
-import kotlinx.coroutines.experimental.Deferred
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.*
@@ -20,7 +19,7 @@ class RepositoryActivity : AppCompatActivity() {
 
     internal val api: GithubApi by lazy { provideGithubApi(this) }
 
-    internal var repoCall: Deferred<GithubRepo> ?= null
+    internal val disposables = CompositeDisposable()
 
     internal val dateFormatInResponse = SimpleDateFormat(
             "yyyy-MM-dd'T'HH:mm:ssX", Locale.getDefault())
@@ -39,45 +38,45 @@ class RepositoryActivity : AppCompatActivity() {
     }
 
     private fun showRepositoryInfo(login: String, repoName: String) {
-        repoCall = api.getRepository(login, repoName)
-        NetworkProvider.request(repoCall!!, NetworkCallback<GithubRepo>().apply {
-            preExecute = {
-                showProgress()
-            }
+        disposables += api.getRepository(login, repoName)
 
-            success = { repo->
-                hideProgress(true)
-                GlideApp.with(this@RepositoryActivity)
-                        .load(repo.owner.avatarUrl)
-                        .into(ivActivityRepositoryProfile)
+                .doOnSubscribe { showProgress() }
 
-                tvActivityRepositoryName.text = repo.fullName
-                tvActivityRepositoryStars.text = resources
-                        .getQuantityString(R.plurals.star, repo.stars, repo.stars)
-                if (repo.description.isNullOrEmpty()) {
-                    tvActivityRepositoryDescription.setText(R.string.no_description_provided)
-                } else {
-                    tvActivityRepositoryDescription.text = repo.description
+                .doOnError { hideProgress(false) }
+
+                .doOnComplete { hideProgress(true) }
+
+                .observeOn(AndroidSchedulers.mainThread())
+
+                .subscribe({ repo ->
+
+                    GlideApp.with(this@RepositoryActivity)
+                            .load(repo.owner.avatarUrl)
+                            .into(ivActivityRepositoryProfile)
+
+                    tvActivityRepositoryName.text = repo.fullName
+                    tvActivityRepositoryStars.text = resources
+                            .getQuantityString(R.plurals.star, repo.stars, repo.stars)
+                    if (repo.description.isNullOrEmpty()) {
+                        tvActivityRepositoryDescription.setText(R.string.no_description_provided)
+                    } else {
+                        tvActivityRepositoryDescription.text = repo.description
+                    }
+                    if (repo.language.isNullOrEmpty()) {
+                        tvActivityRepositoryLanguage.setText(R.string.no_language_specified)
+                    } else {
+                        tvActivityRepositoryLanguage.text = repo.language
+                    }
+
+                    try {
+                        val lastUpdate = dateFormatInResponse.parse(repo.updatedAt)
+                        tvActivityRepositoryLastUpdate.text = dateFormatToShow.format(lastUpdate)
+                    } catch (e: ParseException) {
+
+                    }
+                }){
+                    showError(it.message)
                 }
-                if (repo.language.isNullOrEmpty()) {
-                    tvActivityRepositoryLanguage.setText(R.string.no_language_specified)
-                } else {
-                    tvActivityRepositoryLanguage.text = repo.language
-                }
-
-                try {
-                    val lastUpdate = dateFormatInResponse.parse(repo.updatedAt)
-                    tvActivityRepositoryLastUpdate.text = dateFormatToShow.format(lastUpdate)
-                } catch (e: ParseException) {
-
-                }
-            }
-
-            error = {
-                hideProgress(false)
-                showError(it.message)
-            }
-        })
     }
 
     private fun showProgress() {
@@ -98,7 +97,7 @@ class RepositoryActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
-        repoCall?.run { cancel() }
+        disposables.clear()
         super.onStop()
     }
 

@@ -2,12 +2,12 @@ package com.androidhuman.example.simplegithub.api
 
 import android.content.Context
 import com.androidhuman.example.simplegithub.data.AuthTokenProvider
-import com.jakewharton.retrofit2.adapter.kotlin.coroutines.experimental.CoroutineCallAdapterFactory
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Response
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
+import retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory
 import retrofit2.converter.gson.GsonConverterFactory
 import java.io.IOException
 
@@ -16,7 +16,7 @@ fun provideAuthApi(): AuthApi
         .baseUrl("https://github.com/")
         .client(provideOkHttpClient(provideLoggingInterceptor(), null))
         .addConverterFactory(GsonConverterFactory.create())
-        .addCallAdapterFactory(CoroutineCallAdapterFactory())
+        .addCallAdapterFactory(RxJava2CallAdapterFactory.createAsync())
         .build()
         .create(AuthApi::class.java)
 
@@ -26,7 +26,7 @@ fun provideGithubApi(context: Context): GithubApi
         .client(provideOkHttpClient(provideLoggingInterceptor(),
                 provideAuthInterceptor(provideAuthTokenProvider(context))))
         .addConverterFactory(GsonConverterFactory.create())
-        .addCallAdapterFactory(CoroutineCallAdapterFactory())
+        .addCallAdapterFactory(RxJava2CallAdapterFactory.createAsync())
         .build()
         .create(GithubApi::class.java)
 
