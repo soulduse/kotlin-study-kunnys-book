@@ -11,13 +11,12 @@ import android.widget.ProgressBar
 import com.androidhuman.example.simplegithub.BuildConfig
 import com.androidhuman.example.simplegithub.R
 import com.androidhuman.example.simplegithub.api.AuthApi
-import com.androidhuman.example.simplegithub.api.model.GithubAccessToken
 import com.androidhuman.example.simplegithub.api.provideAuthApi
 import com.androidhuman.example.simplegithub.data.AuthTokenProvider
+import com.androidhuman.example.simplegithub.extensions.AutoClearedDisposable
 import com.androidhuman.example.simplegithub.extensions.plusAssign
 import com.androidhuman.example.simplegithub.ui.main.MainActivity
 import io.reactivex.android.schedulers.AndroidSchedulers
-import io.reactivex.disposables.CompositeDisposable
 import org.jetbrains.anko.clearTask
 import org.jetbrains.anko.intentFor
 import org.jetbrains.anko.longToast
@@ -33,11 +32,13 @@ class SignInActivity : AppCompatActivity() {
 
     internal val authTokenProvider by lazy { AuthTokenProvider(this) }
 
-    internal val disposables = CompositeDisposable()
+    internal val disposables = AutoClearedDisposable(this)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_sign_in)
+
+        lifecycle += disposables
 
         btnStart = findViewById(R.id.btnActivitySignInStart)
         progress = findViewById(R.id.pbActivitySignIn)
@@ -110,10 +111,5 @@ class SignInActivity : AppCompatActivity() {
 
     private fun launchMainActivity() {
         startActivity(intentFor<MainActivity>().clearTask().newTask())
-    }
-
-    override fun onStop() {
-        disposables.clear()
-        super.onStop()
     }
 }

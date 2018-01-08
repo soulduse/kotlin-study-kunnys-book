@@ -3,17 +3,19 @@ package com.androidhuman.example.simplegithub.ui.search
 import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
 import android.support.v7.widget.LinearLayoutManager
-import android.support.v7.widget.SearchView
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.inputmethod.InputMethodManager
+import android.widget.SearchView
 import com.androidhuman.example.simplegithub.R
 import com.androidhuman.example.simplegithub.api.GithubApi
 import com.androidhuman.example.simplegithub.api.model.GithubRepo
 import com.androidhuman.example.simplegithub.api.provideGithubApi
+import com.androidhuman.example.simplegithub.extensions.AutoClearedDisposable
 import com.androidhuman.example.simplegithub.extensions.plusAssign
 import com.androidhuman.example.simplegithub.ui.repo.RepositoryActivity
+import com.jakewharton.rxbinding2.widget.RxSearchView
 import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
@@ -32,7 +34,9 @@ class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
 
     internal val api: GithubApi by lazy { provideGithubApi(this) }
 
-    internal val disposables = CompositeDisposable()
+    internal val disposables = AutoClearedDisposable(this)
+
+    internal val viewDisposable = AutoClearedDisposable(this, false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,22 +51,26 @@ class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_activity_search, menu)
         menuSearch = menu.findItem(R.id.menu_activity_search_query)
+        searchView = (menuSearch.actionView as SearchView)
 
-        searchView = (menuSearch.actionView as SearchView).apply {
-            setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-                override fun onQueryTextSubmit(query: String): Boolean {
+        viewDisposable += RxSearchView.queryTextChangeEvents(searchView)
+
+                .filter { it.isSubmitted }
+
+                .map { it.queryText() }
+
+                .filter { it.isNotEmpty() }
+
+                .map { it.toString() }
+
+                .observeOn(AndroidSchedulers.mainThread())
+
+                .subscribe { query ->
                     updateTitle(query)
                     hideSoftKeyboard()
                     collapseSearchView()
                     searchRepository(query)
-                    return true
                 }
-
-                override fun onQueryTextChange(newText: String): Boolean {
-                    return false
-                }
-            })
-        }
 
         with(menuSearch){
             setOnActionExpandListener(object: MenuItem.OnActionExpandListener{
@@ -167,10 +175,5 @@ class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
             text = ""
             visibility = View.GONE
         }
-    }
-
-    override fun onStop() {
-        disposables.clear()
-        super.onStop()
     }
 }
